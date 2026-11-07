@@ -57,16 +57,28 @@ async function createCheckout(request, env) {
     return json({ error: "Paiement non configuré" }, 500);
   }
   const origin = new URL(request.url).origin;
+
+  // Email facultatif : sert à envoyer le carnet par email après le paiement.
+  let email = "";
+  try {
+    const body = await request.json();
+    if (body && isEmail(body.email)) email = body.email.trim().toLowerCase();
+  } catch {}
+
+  const payload = {
+    amount: AMOUNT,
+    currency: CURRENCY,
+    redirect_url: `${origin}/merci`,
+    callback_url: `${origin}/api/webhook`,
+    external_reference: `carnet-${crypto.randomUUID()}`,
+    metadata: { product: PRODUCT, ...(email ? { email } : {}) },
+  };
+  if (email) payload.customer_email = email;
+
   const res = await fetch(`${apiBase(env)}/checkout/sessions`, {
     method: "POST",
     headers: sebHeaders(env),
-    body: JSON.stringify({
-      amount: AMOUNT,
-      currency: CURRENCY,
-      redirect_url: `${origin}/merci`,
-      external_reference: `carnet-${crypto.randomUUID()}`,
-      metadata: { product: PRODUCT },
-    }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     console.error("SebPay checkout error", res.status, await res.text());
@@ -110,9 +122,88 @@ try{var k='purchase_'+${JSON.stringify(id).replace(/</g, "\\u003c")};if(!localSt
   return page("Paiement en cours", "<h1>Paiement en cours de confirmation</h1><p>Recharge cette page dans quelques secondes.</p>");
 }
 
+function isEmail(value) {
+  return typeof value === "string" && value.length <= 254 && /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(value.trim());
+}
+
+async function hmacHex(secret, data) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, data);
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function safeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+// Email de livraison via Resend. La clé d'idempotence évite les doublons si SebPay renvoie le webhook.
+async function sendDelivery(env, to, sessionId) {
+  if (!env.RESEND_API_KEY || !(env.DOWNLOAD_URL || "").startsWith("https://")) {
+    console.error("Email de livraison non configuré (RESEND_API_KEY ou DOWNLOAD_URL manquant)");
+    return;
+  }
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `carnet-${sessionId}`,
+    },
+    body: JSON.stringify({
+      from: env.RESEND_FROM || "Carnet 2027 <carnet@wooplans.com>",
+      to: [to],
+      subject: "Ton carnet Bilan 2026 & Plan 2027",
+      html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;color:#1b1b1f">
+<h2 style="color:#14213d">Merci pour ton achat !</h2>
+<p>Ton carnet <b>Bilan 2026 &amp; Plan 2027</b> est prêt. Prends 1 à 2 heures au calme pour le remplir.</p>
+<p><a href="${env.DOWNLOAD_URL}" style="display:inline-block;background:#f2a900;color:#14213d;font-weight:bold;padding:14px 22px;border-radius:12px;text-decoration:none">Télécharger mon carnet</a></p>
+<p style="color:#5d6270;font-size:14px">Tu peux le remplir sur ton téléphone ou l'imprimer.</p></div>`,
+    }),
+  });
+  if (!res.ok) throw new Error(`Resend ${res.status}`);
+}
+
+// Webhook SebPay : signature HMAC-SHA256 du corps brut, puis relecture de la session avant toute livraison.
+async function webhook(request, env) {
+  if (!env.SEBPAY_SECRET_KEY) return new Response("not configured", { status: 500 });
+  const raw = await request.arrayBuffer();
+  const signature = (request.headers.get("X-SebPay-Signature") || "").toLowerCase();
+  const expected = await hmacHex(env.SEBPAY_SECRET_KEY, raw);
+  if (!signature || !safeEqual(signature, expected)) return new Response("invalid signature", { status: 401 });
+
+  let event;
+  try {
+    event = JSON.parse(new TextDecoder().decode(raw));
+  } catch {
+    return new Response("bad json", { status: 400 });
+  }
+  if (event.status !== "approved" || !event.checkout_session_id) return new Response("ok");
+  if (!event.metadata || event.metadata.product !== PRODUCT) return new Response("ok");
+
+  try {
+    const res = await fetch(`${apiBase(env)}/checkout/sessions/${encodeURIComponent(event.checkout_session_id)}`, {
+      headers: sebHeaders(env),
+    });
+    if (!res.ok) return new Response("verify failed", { status: 502 }); // SebPay réessaiera
+    const session = await res.json();
+    if (session.transaction_status !== "approved") return new Response("ok");
+
+    const email = event.metadata.email || (session.metadata && session.metadata.email);
+    if (isEmail(email)) await sendDelivery(env, email.trim(), event.checkout_session_id);
+    return new Response("ok");
+  } catch (err) {
+    console.error("Webhook error", String(err));
+    return new Response("error", { status: 502 });
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === "/api/webhook" && request.method === "POST") return webhook(request, env);
     if (url.pathname === "/api/checkout" && request.method === "POST") return createCheckout(request, env);
     if (url.pathname === "/merci" && request.method === "GET") return thankYou(url, env);
     return env.ASSETS.fetch(request);

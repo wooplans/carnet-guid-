@@ -54,6 +54,9 @@ p{margin:0 0 14px}
 .amount small{font-size:1.1rem;letter-spacing:0}
 .card ul{list-style:none;padding:0;margin:20px 0;text-align:left;display:grid;gap:10px;font-size:.95rem}
 .card li::before{content:"✓ ";color:var(--green);font-weight:900}
+.email-label{display:block;text-align:left;font-size:.82rem;font-weight:700;color:var(--muted);margin:0 0 6px}
+.email{width:100%;min-height:52px;padding:0 14px;margin-bottom:14px;border:1px solid var(--line);border-radius:12px;font:inherit;background:#fffdf8;color:var(--ink)}
+.email:focus{outline:3px solid rgba(242,169,0,.5);border-color:var(--gold)}
 .secure{margin:12px 0 0;font-size:.8rem;color:var(--muted)}
 details{border-bottom:1px solid var(--line);padding:16px 2px}
 details:first-of-type{border-top:1px solid var(--line);margin-top:18px}
@@ -150,6 +153,8 @@ details p{margin:10px 0 0;color:var(--muted);font-size:.95rem}
         <li>PDF téléphone + version imprimable</li>
         <li>Accès immédiat après paiement</li>
       </ul>
+      <label class="email-label" for="email">Email (facultatif) : pour recevoir aussi ton carnet par email</label>
+      <input class="email" id="email" type="email" inputmode="email" autocomplete="email" placeholder="ton@email.com">
       <a class="btn" href="#" data-cta data-buy>Je veux mon carnet maintenant</a>
       <p class="secure">Paiement sécurisé par Mobile Money</p>
     </div>
@@ -201,7 +206,12 @@ function buy(e) {
   var buttons = document.querySelectorAll("[data-buy]");
   buttons.forEach(function (b) { b.style.opacity = ".7"; });
   if (window.fbq) fbq("track", "InitiateCheckout", { value: 2900, currency: "XAF", content_name: "Carnet Bilan 2026 & Plan 2027" });
-  fetch("/api/checkout", { method: "POST" })
+  var emailField = document.getElementById("email");
+  fetch("/api/checkout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: emailField ? emailField.value : "" })
+  })
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
     .then(function (res) {
       if (!res.ok || !res.d.checkout_url) throw new Error("checkout");
