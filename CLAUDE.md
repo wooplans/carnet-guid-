@@ -16,5 +16,5 @@ Paiement : SebPay (Mobile Money + carte) via un Worker Cloudflare. Docs : https:
 - Déployer avec les clés de test, faire un paiement de test, puis passer en live.
 - Webhook SebPay + email de livraison (Resend).
 - Lien de téléchargement protégé (R2).
-- Pixel Meta (PageView, InitiateCheckout, Purchase sur /merci).
+- Pixel Meta : fait (MyMusikaPixel 2109476576672442 ; PageView, InitiateCheckout, Purchase sur /merci). Reste à vérifier dans Test Events.
 - 3 pubs Facebook de test (angles : nouveau départ, argent, méthode).

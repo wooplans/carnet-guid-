@@ -14,6 +14,7 @@ const DEFAULT_API = "https://newapi.sebpay.bj/api/v1";
 const AMOUNT = 2900;
 const CURRENCY = "XAF";
 const PRODUCT = "carnet-bilan-plan-2027";
+const PIXEL_ID = "2109476576672442"; // MyMusikaPixel (identifiant public)
 
 function apiBase(env) {
   return (env.SEBPAY_API_BASE || DEFAULT_API).replace(/\/+$/, "");
@@ -94,7 +95,14 @@ async function thankYou(url, env) {
     const action = link
       ? `<a class="btn" href="${link}">Télécharger mon carnet</a>`
       : "<p>Ton lien de téléchargement arrive très vite. Garde cette page ouverte.</p>";
-    return page("Merci !", `<h1>Paiement confirmé. Merci !</h1><p>Ton carnet Bilan 2026 &amp; Plan 2027 est prêt.</p>${action}`);
+    // Pixel Meta : événement Purchase, une seule fois par session (anti-doublon au rechargement).
+    const pixel = `<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init','${PIXEL_ID}');
+fbq('track','PageView');
+try{var k='purchase_'+${JSON.stringify(id).replace(/</g, "\\u003c")};if(!localStorage.getItem(k)){fbq('track','Purchase',{value:${AMOUNT},currency:'${CURRENCY}',content_name:'Carnet Bilan 2026 & Plan 2027'});localStorage.setItem(k,'1');}}catch(e){fbq('track','Purchase',{value:${AMOUNT},currency:'${CURRENCY}'});}
+<\/script>`;
+    return page("Merci !", `<h1>Paiement confirmé. Merci !</h1><p>Ton carnet Bilan 2026 &amp; Plan 2027 est prêt.</p>${action}${pixel}`);
   }
   if (session.transaction_status === "rejected") {
     return page("Paiement", "<h1>Paiement non abouti</h1><p>Tu n'as pas été débité. Tu peux réessayer.</p><a class=\"btn\" href=\"/\">Réessayer</a>");

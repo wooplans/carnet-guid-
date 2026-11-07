@@ -188,9 +188,10 @@ window.addEventListener("scroll", function () {
   sticky.classList.toggle("show", past && !offerVisible);
 }, { passive: true });
 
-// Pixel Meta : décommenter et mettre ton ID de pixel (et l'événement InitiateCheckout au clic).
-// !function(f,b,e,v,n,t,s){...}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-// fbq('init','TON_PIXEL_ID'); fbq('track','PageView');
+// Pixel Meta (MyMusikaPixel) : PageView ici, InitiateCheckout au clic, Purchase sur /merci.
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init','2109476576672442');
+fbq('track','PageView');
 // Paiement SebPay : le Worker crée la session, puis on redirige vers la page de paiement.
 var buying = false;
 function buy(e) {
@@ -199,7 +200,7 @@ function buy(e) {
   buying = true;
   var buttons = document.querySelectorAll("[data-buy]");
   buttons.forEach(function (b) { b.style.opacity = ".7"; });
-  if (window.fbq) fbq("track", "InitiateCheckout");
+  if (window.fbq) fbq("track", "InitiateCheckout", { value: 2900, currency: "XAF", content_name: "Carnet Bilan 2026 & Plan 2027" });
   fetch("/api/checkout", { method: "POST" })
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
     .then(function (res) {

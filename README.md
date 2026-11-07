@@ -33,4 +33,4 @@ Le Worker `mymusika` (application MyMusika sur la racine du domaine) ne doit pas
 
 - Webhook SebPay (`callback_url`, vérification HMAC-SHA256 de `X-SebPay-Signature`) + email de livraison via Resend, pour livrer aussi quand le client ferme l'onglet avant le retour.
 - Lien de téléchargement protégé (R2 avec lien temporaire) à la place d'un lien fixe.
-- Pixel Meta : décommenter le bloc dans `public/index.html` et ajouter l'événement `Purchase` sur `/merci`.
+- Pixel Meta (MyMusikaPixel, ID 2109476576672442) : actif. PageView et InitiateCheckout sur la page, Purchase sur `/merci` (une seule fois par session). À vérifier avec « Test Events » dans le Gestionnaire d'événements.
