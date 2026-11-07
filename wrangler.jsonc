@@ -1,0 +1,11 @@
+{
+  "name": "carnet-mymusika",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/merci"]
+  },
+  "routes": [{ "pattern": "carnet.mymusika.com", "custom_domain": true }]
+}
